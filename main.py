@@ -89,8 +89,8 @@ class VarNet(nn.Module):
         """
         super().__init__()
         self.out_channels = n_resolutions_learned
-        self.convs = nn.Sequential()
         self.dense = dense
+        self.convs = nn.Sequential()
         
         if spatial_kernels < 1 and dense == 'spatial':
             raise ValueError("Can't use dense='spatial' when spatial_kernels \
@@ -103,7 +103,12 @@ class VarNet(nn.Module):
                     n_kernels=spatial_kernels,
                 )
             )
-            in_channels -= 0 if dense == "spatial" else in_channels
+            # when dense is True or 'spatial' then in_channels of temporal layer
+            # should be original in_channels + spatial channels
+            # else it should just equal spatial_kernels
+            in_channels -= 0 \
+                if ( dense == "spatial" ) or ( dense is True ) \
+                else in_channels
             in_channels += spatial_kernels
         
         temporal_layer = TemporalLayer(

@@ -85,7 +85,7 @@ class VarNet(nn.Module):
             temporal_kernels (dict): See `TemporalLayer`.
             n_resolutions_learned (int): How many kernels to use in the spatial/resolution layer. See `SpatialLayer`.
             spatial_kernels (int, optional): How many kernels to use in the optional, initial, spatial step. Defaults to 0, in which case no initial spatial step is used.
-            dense (bool | str, optional) Can be one for True/False, 'append' or 'spatial'. When set to 'append' the original input is appended to the final output. Defaults to False.
+            dense (bool | str, optional) Can be one for True/False, 'append' or 'spatial'. When set to 'append' the original input is appended to the final output. When set to 'spatial' the original input is appended to after the optional first spatial layer. In this case spatial_kernels should be greater than 0. Defaults to False.
         """
         super().__init__()
         self.out_channels = n_resolutions_learned

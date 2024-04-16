@@ -75,6 +75,7 @@ class VarNet(nn.Module):
         temporal_kernels: dict,
         n_resolutions_learned: int,
         spatial_kernels: int = 0,
+        dense: bool | str = False
     ) -> None:
         """A convolutional neural network for spatio-temporal data that intelligently learns what kernel size or resolution to focus on at each time step. This is done by following a temporal layer with a spatial layer whose sole job is to balance the outputs of the previous temporal layer. This temporal layer should use multiple kernel lengths, i.e. multiple resolutions.
         Optionally the first, temporal, layer can be preceded by a spatial layer that learns the interactions between each input channel.
@@ -84,10 +85,12 @@ class VarNet(nn.Module):
             temporal_kernels (dict): See `TemporalLayer`.
             n_resolutions_learned (int): How many kernels to use in the spatial/resolution layer. See `SpatialLayer`.
             spatial_kernels (int, optional): How many kernels to use in the optional, initial, spatial step. Defaults to 0, in which case no initial spatial step is used.
+            dense (bool | str, optional) Can be one for True/False, 'append' or 'spatial'. When set to 'append' the original input is appended to the final output. Defaults to False.
         """
         super().__init__()
         self.out_channels = n_resolutions_learned
         self.conv = nn.Sequential()
+        self.dense = dense
         
         if spatial_kernels > 0:
             self.conv.append(
@@ -115,12 +118,14 @@ class VarNet(nn.Module):
     
     def forward(self, X: torch.Tensor) -> torch.Tensor:
         y_ = self.conv(X)
+        if self.dense == 'append':
+            y_ = torch.concat([X, y_], dim=-2)
         return y_
 
 
 if __name__ == "__main__":
     input = torch.rand(16, 4, 120)
-    model = VarNet(4, {3: 2, 9: 2}, 3, 2)
+    model = VarNet(4, {3: 2, 9: 2}, 3, 2, dense='append')
     # model = VarNet(4, {3: 2, 9: 2}, 3)
     output = model(input)
     print(output.shape)

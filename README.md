@@ -6,4 +6,5 @@ A time series might have areas of low resolution -not much happening for many su
 This pre-network tries to learn how to combine kernels of different lengths by incorporating a spatial step **after** an initial temporal step. As far as I'm aware, this isn't done yet.
 Typically, firstly, a spatial layer might be used, sometimes called a bottleneck layer, to reduce the complexity of the input data, in the case of a multivariate data source.
 
-![architecture](architecture.md)
+![architecture](architecture.png)
+

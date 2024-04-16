@@ -1,6 +1,8 @@
+import warnings
+
 import torch
 from torch import nn
-import warnings
+
 
 class TemporalLayer(nn.Module):
     @property
@@ -72,7 +74,7 @@ class VarNet(nn.Module):
     def __init__(
         self,
         in_channels: int,
-        temporal_kernels: dict[int:int],
+        temporal_kernels: dict[int, int],
         n_resolutions_learned: int,
         spatial_kernels: int = 0,
         dense: bool | str = False

@@ -5,8 +5,8 @@
     [x] spatial
 [ ] optionally first spatial step
     [x] implement
-[ ] dense
+[x] dense
     [x] append input to output
     [x] append input to after spatial layer
-    [ ] append input to each step
+    [x] append input to each step
 [ ] redo first kernel step with option of fixed kernels

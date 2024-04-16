@@ -88,14 +88,16 @@ class VarNet(nn.Module):
             dense (bool | str, optional) Can be one for True/False, 'append' or 'spatial'. When set to 'append' the original input is appended to the final output. When set to 'spatial' the original input is appended to after the optional first spatial layer. In this case spatial_kernels should be greater than 0. Defaults to False.
         """
         super().__init__()
-        self.out_channels = n_resolutions_learned
-        self.dense = dense
-        self.convs = nn.Sequential()
-        
         if spatial_kernels < 1 and dense == 'spatial':
             raise ValueError("Can't use dense='spatial' when spatial_kernels \
                 is not set to an int greater than 0.")
         
+        # init
+        self.dense = dense
+        self.convs = nn.Sequential()
+        n_intermediary_channels = 0
+        
+        # optionally, prepend spatial layer
         if spatial_kernels > 0:
             self.convs.append(
                 SpatialLayer(
@@ -103,49 +105,75 @@ class VarNet(nn.Module):
                     n_kernels=spatial_kernels,
                 )
             )
-            # when dense is True or 'spatial' then in_channels of temporal layer
-            # should be original in_channels + spatial channels
-            # else it should just equal spatial_kernels
-            in_channels -= 0 \
-                if ( dense == "spatial" ) or ( dense is True ) \
-                else in_channels
-            in_channels += spatial_kernels
+            n_intermediary_channels = spatial_kernels
+        if ( dense is True ) or ( dense == 'spatial' ):
+            n_intermediary_channels += in_channels
         
+        # learn over time
         temporal_layer = TemporalLayer(
-            in_channels=in_channels,
+            in_channels=n_intermediary_channels,
             kernels=temporal_kernels,
         )
+        if dense is True:
+            n_intermediary_channels += temporal_layer.out_channels
+        else:
+            n_intermediary_channels = temporal_layer.out_channels
+        
+        # learn to relate output channels of temporal layer (previous layer)
         resolution_learner = SpatialLayer(
-            in_channels=temporal_layer.out_channels,
+            in_channels=n_intermediary_channels,
             n_kernels=n_resolutions_learned,
         )
+        if dense is True:
+            n_intermediary_channels += resolution_learner.output_size
+        else:
+            n_intermediary_channels = resolution_learner.output_size
+        
+        # store layers
         self.convs.extend(
             [
                 temporal_layer,
                 resolution_learner,
             ]
         )
+        self.out_channels = n_resolutions_learned if dense is False \
+            else n_intermediary_channels
         
-        self.forward = self.forward_default
+        # choose a different forward function depending on dense
+        self.forward = self._forward
         if self.dense == 'spatial':
-            self.forward = self.forward_spatially_dense
+            self.forward = self._forward_spatially_dense
         elif self.dense == 'append':
-            self.forward = self.forward_append
+            self.forward = self._forward_append
+        elif self.dense is True:
+            self.forward = self._forward_dense
     
-    def forward_default(self, X: torch.Tensor) -> torch.Tensor:
+    def _forward(self, X: torch.Tensor) -> torch.Tensor:
         y_ = self.convs(X)
         return y_
     
-    def forward_spatially_dense(self, X: torch.Tensor) -> torch.Tensor:
+    def _forward_spatially_dense(self, X: torch.Tensor) -> torch.Tensor:
+        """Append input X to output of first convolution."""
         y_ = self.convs[0](X)
         X_ = torch.concat([X, y_], dim=-2)
         y__ = self.convs[1:](X_)
         return y__
     
-    def forward_append(self, X: torch.Tensor) -> torch.Tensor:
-        y_ = self.forward_default(X)
+    def _forward_append(self, X: torch.Tensor) -> torch.Tensor:
+        """Append input X to ouput."""
+        y_ = self._forward(X)
         y_ = torch.concat([X, y_], dim=-2)
         return y_
+    
+    def _forward_dense(self, X: torch.Tensor) -> torch.Tensor:
+        """Append each intermediate output to the output of the next layer and use this intermediate X_ as the input of each successive layer."""
+        intermediates = [X]
+        X_ = X
+        for conv in self.convs:
+            y_ = conv(X_)
+            intermediates.append(y_)
+            X_ = torch.concat(intermediates, dim=-2)
+        return X_
 
 
 if __name__ == "__main__":

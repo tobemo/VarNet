@@ -7,7 +7,7 @@ class TemporalLayer(nn.Module):
     def out_channels(self) -> int:
         return sum(self.kernels.values())
     
-    def __init__(self, in_channels: int, kernels: dict) -> None:
+    def __init__(self, in_channels: int, kernels: dict[int,int]) -> None:
         """Simple 1D convolutional network for temporal data.
 
         Args:
@@ -72,7 +72,7 @@ class VarNet(nn.Module):
     def __init__(
         self,
         in_channels: int,
-        temporal_kernels: dict,
+        temporal_kernels: dict[int:int],
         n_resolutions_learned: int,
         spatial_kernels: int = 0,
         dense: bool | str = False

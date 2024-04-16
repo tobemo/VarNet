@@ -89,17 +89,22 @@ class VarNet(nn.Module):
         """
         super().__init__()
         self.out_channels = n_resolutions_learned
-        self.conv = nn.Sequential()
+        self.convs = nn.Sequential()
         self.dense = dense
         
+        if spatial_kernels < 1 and dense == 'spatial':
+            raise ValueError("Can't use dense='spatial' when spatial_kernels \
+                is not set to an int greater than 0.")
+        
         if spatial_kernels > 0:
-            self.conv.append(
+            self.convs.append(
                 SpatialLayer(
                     in_channels=in_channels,
                     n_kernels=spatial_kernels,
                 )
             )
-            in_channels = spatial_kernels
+            in_channels -= 0 if dense == "spatial" else in_channels
+            in_channels += spatial_kernels
         
         temporal_layer = TemporalLayer(
             in_channels=in_channels,
@@ -109,17 +114,32 @@ class VarNet(nn.Module):
             in_channels=temporal_layer.out_channels,
             n_kernels=n_resolutions_learned,
         )
-        self.conv.extend(
+        self.convs.extend(
             [
                 temporal_layer,
                 resolution_learner,
             ]
         )
+        
+        self.forward = self.forward_default
+        if self.dense == 'spatial':
+            self.forward = self.forward_spatially_dense
+        elif self.dense == 'append':
+            self.forward = self.forward_append
     
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
-        y_ = self.conv(X)
-        if self.dense == 'append':
-            y_ = torch.concat([X, y_], dim=-2)
+    def forward_default(self, X: torch.Tensor) -> torch.Tensor:
+        y_ = self.convs(X)
+        return y_
+    
+    def forward_spatially_dense(self, X: torch.Tensor) -> torch.Tensor:
+        y_ = self.convs[0](X)
+        X_ = torch.concat([X, y_], dim=-2)
+        y__ = self.convs[1:](X_)
+        return y__
+    
+    def forward_append(self, X: torch.Tensor) -> torch.Tensor:
+        y_ = self.forward_default(X)
+        y_ = torch.concat([X, y_], dim=-2)
         return y_
 
 

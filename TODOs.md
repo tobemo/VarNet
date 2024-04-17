@@ -9,5 +9,5 @@
     [x] append input to output
     [x] append input to after spatial layer
     [x] append input to each step
-[ ] redo first kernel step with option of fixed kernels
+[x] redo first kernel step with option of fixed kernels
 [ ] add option of bias in temporal layer

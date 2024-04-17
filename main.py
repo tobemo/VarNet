@@ -8,6 +8,7 @@ class TemporalLayer(nn.Module):
     @property
     def out_channels(self) -> int:
         return sum(self.kernels.values())
+    convs: nn.ModuleList | list[nn.Conv1d]
     
     def __init__(self, in_channels: int, kernels: dict[int,int]) -> None:
         """Simple 1D convolutional network for temporal data.
@@ -37,6 +38,54 @@ class TemporalLayer(nn.Module):
         y_ = [conv(X) for conv in self.convs]
         y_ = torch.concat(y_, dim=-2)
         return y_
+
+
+class FixedTemporalLayerBase(TemporalLayer):
+    def __init__(self, in_channels: int, weights: list[torch.Tensor]) -> None:
+        """Base class for fixed convolutional neural network (the weights don't change over time, i.e. it doesn't learn). One or more convolution layers are initialized using the specified weights. The shape of the specified weights determines the shape of convolution layers.
+        
+        Args:
+            in_channels (int): How many input channels the time series has.
+            weights (list[torch.Tensor]): A list of tensor weights to initialize the temporal layer with. If multiple weights of the same length are passed they are concatenated along the first dimension.
+        """
+        # detect weights of same length and concat them
+        _weights: dict[int, torch.Tensor] = {}
+        for weight in weights:
+            kernel_length = weight.shape[-1]
+            if not kernel_length in _weights:
+                _weights[kernel_length] = weight
+            else:
+                _weights[kernel_length] = torch.concat(
+                    [
+                        _weights[kernel_length],
+                        weight
+                    ], dim=0,
+                )
+        
+        # figure out required kernel shapes from weights
+        kernels = {}
+        for weight in _weights.values():
+            kernel_length = weight.shape[-1]
+            kernel_count = weight.shape[0]
+            kernels[kernel_length] = kernel_count
+        
+        # initialize random network following requirements of kernel
+        super().__init__(in_channels, kernels)
+        
+        # overwrite the random weights in network with own
+        for weight, conv in zip(_weights.values(), self.convs):
+            conv.requires_grad_(False)
+            conv.weight.copy_(weight)
+
+
+class DummyTemporalLayer(FixedTemporalLayerBase):
+    def __init__(self, in_channels: int) -> None:
+        weights = [
+            torch.zeros(1, in_channels, 3),
+            torch.ones(1, in_channels, 3),
+            torch.zeros(1, in_channels, 9),
+        ]
+        super().__init__(in_channels, weights=weights)
 
 
 class SpatialLayer(nn.Module):
@@ -180,7 +229,7 @@ class VarNet(nn.Module):
 
 if __name__ == "__main__":
     input = torch.rand(16, 4, 120)
-    model = VarNet(4, {3: 2, 9: 2}, 3, 2, dense='append')
-    # model = VarNet(4, {3: 2, 9: 2}, 3)
-    output = model(input)
-    print(output.shape)
+    model = DummyTemporalLayer(16)
+    print(model.convs)
+    for conv in model.convs:
+        print(conv.weight)

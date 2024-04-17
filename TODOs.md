@@ -10,4 +10,5 @@
     [x] append input to after spatial layer
     [x] append input to each step
 [x] redo first kernel step with option of fixed kernels
-[ ] add option of bias in temporal layer
+[x] add option of bias in temporal layer
+[ ] allow for more bias terms than kernels; this should increase number of kernels

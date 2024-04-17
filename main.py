@@ -10,12 +10,18 @@ class TemporalLayer(nn.Module):
         return sum(self.kernels.values())
     convs: nn.ModuleList | list[nn.Conv1d]
     
-    def __init__(self, in_channels: int, kernels: dict[int,int]) -> None:
+    def __init__(
+        self,
+        in_channels: int,
+        kernels: dict[int,int],
+        bias: bool = False
+    ) -> None:
         """Simple 1D convolutional network for temporal data.
 
         Args:
             in_channels (int): How many input channels the time series has.
             kernels (dict): A dict with as keys the size/length of each kernel and as value the number of kernels of that length.
+            bias (bool, optional): Whether to add a learnable bias to the output of each kernel.
         """
         super().__init__()
         self.convs = nn.ModuleList()
@@ -30,7 +36,7 @@ class TemporalLayer(nn.Module):
                     stride=1,
                     padding='same',
                     dilation=1,
-                    bias=False,
+                    bias=bias,
                 )
             )
     
@@ -41,7 +47,12 @@ class TemporalLayer(nn.Module):
 
 
 class FixedTemporalLayerBase(TemporalLayer):
-    def __init__(self, in_channels: int, weights: list[torch.Tensor]) -> None:
+    def __init__(
+        self,
+        in_channels: int,
+        weights: list[torch.Tensor],
+        biases: list[torch.Tensor] = None
+    ) -> None:
         """Base class for fixed convolutional neural network (the weights don't change over time, i.e. it doesn't learn). One or more convolution layers are initialized using the specified weights. The shape of the specified weights determines the shape of convolution layers.
         
         Args:
@@ -61,7 +72,7 @@ class FixedTemporalLayerBase(TemporalLayer):
                         weight
                     ], dim=0,
                 )
-        
+
         # figure out required kernel shapes from weights
         kernels = {}
         for weight in _weights.values():
@@ -70,12 +81,38 @@ class FixedTemporalLayerBase(TemporalLayer):
             kernels[kernel_length] = kernel_count
         
         # initialize random network following requirements of kernel
-        super().__init__(in_channels, kernels)
+        super().__init__(
+            in_channels=in_channels,
+            kernels=kernels,
+            bias=biases is not None
+        )
         
         # overwrite the random weights in network with own
         for weight, conv in zip(_weights.values(), self.convs):
             conv.requires_grad_(False)
             conv.weight.copy_(weight)
+        
+        # below something similar is (optionally) done for biases
+        if biases is None:
+            return
+        
+        # the main difference is that weight is used to group biases
+        _biases: dict[int, torch.Tensor] = {}
+        for bias, weight in zip(biases, weights):
+            kernel_length = weight.shape[-1]
+            if not kernel_length in _biases:
+                _biases[kernel_length] = bias
+            else:
+                _biases[kernel_length] = torch.concat(
+                    [
+                        _biases[kernel_length],
+                        bias
+                    ], dim=0,
+                )
+        
+        for bias, conv in zip(_biases.values(), self.convs):
+            conv.requires_grad_(False)
+            conv.bias.copy_(bias)
 
 
 class DummyTemporalLayer(FixedTemporalLayerBase):
@@ -85,7 +122,12 @@ class DummyTemporalLayer(FixedTemporalLayerBase):
             torch.ones(1, in_channels, 3),
             torch.zeros(1, in_channels, 9),
         ]
-        super().__init__(in_channels, weights=weights)
+        biases = [
+            torch.zeros(1),
+            torch.ones(1),
+            torch.zeros(1),
+        ]
+        super().__init__(in_channels, weights=weights, biases=biases)
 
 
 class SpatialLayer(nn.Module):
@@ -232,4 +274,5 @@ if __name__ == "__main__":
     model = DummyTemporalLayer(16)
     print(model.convs)
     for conv in model.convs:
-        print(conv.weight)
+        print(conv.weight[:3, :3])
+        print(conv.bias)

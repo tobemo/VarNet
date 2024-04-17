@@ -12,3 +12,4 @@
 [x] redo first kernel step with option of fixed kernels
 [x] add option of bias in temporal layer
 [ ] allow for more bias terms than kernels; this should increase number of kernels
+[ ] locate TS data, ideally ecg
